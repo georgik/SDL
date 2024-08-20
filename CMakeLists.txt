@@ -175,10 +175,10 @@ if(MSVC)
   endif()
 endif()
 
-set(SDL_SHARED_DEFAULT ON)
+set(SDL_SHARED_DEFAULT OFF)
 set(SDL_STATIC_DEFAULT ON)
 
-set(SDL_SHARED_AVAILABLE ON)
+set(SDL_SHARED_AVAILABLE OFF)
 set(SDL_STATIC_AVAILABLE ON)
 
 # All these *_DEFAULT vars will default to ON if not specified,
@@ -1224,6 +1224,91 @@ if(SDL_VIDEO)
 endif()
 
 # Platform-specific options and settings
+option(SDL_ESP_IDF "Build SDL specifically for the ESP-IDF environment" ON)
+
+# if(SDL_ESP_IDF)
+# enable_language(CXX)
+
+#   set(SDL_STATIC_LIB_NAME "SDL3-esp-idf")
+  set(SDL_REVISION "3.0.0-esp-idf")
+
+  sdl_sources("${SDL3_SOURCE_DIR}/src/misc/esp-idf/SDL_sysurl.c")
+
+  sdl_glob_sources(
+    "${SDL3_SOURCE_DIR}/src/thread/esp-idf/SDL_syscond.c"
+    "${SDL3_SOURCE_DIR}/src/thread/esp-idf/SDL_systls.c"
+    "${SDL3_SOURCE_DIR}/src/thread/esp-idf/SDL_sysrwlock.c"
+  )
+
+  set_property(SOURCE "${SDL3_SOURCE_DIR}/src/misc/esp-idf/SDL_sysurl.c" APPEND_STRING PROPERTY COMPILE_FLAGS " -Wno-declaration-after-statement")
+  set(HAVE_SDL_THREADS TRUE)
+
+  # set(SDL_TIMER_UNIX 1)
+  # sdl_glob_sources("${SDL3_SOURCE_DIR}/src/timer/unix/*.c")
+  set(HAVE_SDL_TIMERS TRUE)
+  set(SDL_AUDIO 0)
+  set(SDL_CAMERA 0)
+  set(SDL_JOYSTICK 0)
+  set(SDL_HAPTIC 0)
+  set(SDL_HIDAPI 0)
+  set(SDL_POWER 0)
+  set(SDL_SENSOR 0)
+  set(SDL_DIALOG 0)
+  set(SDL_RENDER 0)
+
+#   add_library(${SDL_STATIC_LIB_NAME} STATIC ${SDL_ESP_IDF_SOURCES} ${SDL_ESP_IDF_THREAD_SOURCES})
+#   target_compile_definitions(${SDL_STATIC_LIB_NAME} PRIVATE SDL_STATIC_LIB)
+
+#   target_link_libraries(${SDL_STATIC_LIB_NAME} PRIVATE ${SDL_CMAKE_DEPENDS})
+#   target_include_directories(${SDL_STATIC_LIB_NAME}
+    # PRIVATE
+    #   "$<BUILD_INTERFACE:${SDL3_BINARY_DIR}/include-config-$<LOWER_CASE:$<CONFIG>>>"
+    #   "$<BUILD_INTERFACE:${SDL3_SOURCE_DIR}/src>"
+#   )
+#   target_link_libraries(${SDL_STATIC_LIB_NAME} PUBLIC $<TARGET_NAME:SDL3::Headers>)
+
+  # ESP32-specific configurations
+#   if(CONFIG_IDF_TARGET_ESP32 OR CONFIG_IDF_TARGET_ESP32S2 OR CONFIG_IDF_TARGET_ESP32S3 OR CONFIG_IDF_TARGET_ESP32C3 OR CONFIG_IDF_TARGET_ESP32P4)
+    # Disable unsupported subsystems
+    # target_compile_definitions(${SDL_STATIC_LIB_NAME} PRIVATE 
+    #   SDL_AUDIO_DISABLED
+    #   SDL_HAPTIC_DISABLED
+    #   SDL_JOYSTICK_DISABLED
+    #   SDL_SENSOR_DISABLED
+    # )
+
+    # Enable FreeRTOS threading
+    # target_compile_definitions(${SDL_STATIC_LIB_NAME} USE_FREERTOS_THREADS)
+
+    # ESP32-specific compiler options
+    # target_compile_options(${SDL_STATIC_LIB_NAME} PRIVATE 
+    #   -mlongcalls
+    #   -ffunction-sections
+    #   -fdata-sections
+    # )
+
+    # Linking with ESP-IDF specific libraries
+    # target_link_libraries(${SDL_STATIC_LIB_NAME} PRIVATE 
+    #   "-u call_user_start_cpu0"
+    #   "-u __ubsan_include"
+    #   ${IDF_TARGET}
+    #   Threads::Threads  # Ensure threading support is linked
+    # )
+#   endif()
+
+#   set_property(TARGET ${SDL_STATIC_LIB_NAME} APPEND PROPERTY COMPATIBLE_INTERFACE_BOOL SDL3_SHARED)
+#   set_property(TARGET ${SDL_STATIC_LIB_NAME} PROPERTY INTERFACE_SDL3_SHARED FALSE)
+#   set_property(TARGET ${SDL_STATIC_LIB_NAME} APPEND PROPERTY COMPATIBLE_INTERFACE_STRING "SDL_VERSION")
+#   set_property(TARGET ${SDL_STATIC_LIB_NAME} PROPERTY INTERFACE_SDL_VERSION "SDL${SDL3_VERSION_MAJOR}")
+
+#   if(NOT CMAKE_VERSION VERSION_LESS "3.16")
+#     target_precompile_headers(${SDL_STATIC_LIB_NAME} PRIVATE "$<$<OR:$<COMPILE_LANGUAGE:C>,$<COMPILE_LANGUAGE:CXX>>:${PROJECT_SOURCE_DIR}/src/SDL_internal.h>")
+#   endif()
+# endif()
+
+
+
+
 if(ANDROID)
   list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake/android")
 
@@ -3006,7 +3091,7 @@ foreach(_hdr IN LISTS SDL3_INCLUDE_FILES)
   endif()
 endforeach()
 
-set(SDL_REVISION "" CACHE STRING "Custom SDL revision (overrides SDL_REVISION_SUFFIX)")
+set(SDL_REVISION "3.0.0" CACHE STRING "Custom SDL revision (overrides SDL_REVISION_SUFFIX)")
 if(NOT SDL_REVISION)
   set(SDL_REVISION_SUFFIX "" CACHE STRING "Suffix for the SDL revision")
   if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION.txt")
@@ -3207,7 +3292,7 @@ if(APPLE)
 endif()
 
 # Disable precompiled headers on SDL_dynapi.c to avoid applying dynapi overrides
-set_source_files_properties(src/dynapi/SDL_dynapi.c PROPERTIES SKIP_PRECOMPILE_HEADERS 1)
+# set_source_files_properties(src/dynapi/SDL_dynapi.c PROPERTIES SKIP_PRECOMPILE_HEADERS 1)
 
 set(SDL_FRAMEWORK_RESOURCES
   Xcode/SDL/pkg-support/resources/ReadMe.txt
