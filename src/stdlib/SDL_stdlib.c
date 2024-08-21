@@ -24,6 +24,7 @@
 
 #include "../libm/math_libm.h"
 
+#include <math.h>
 double SDL_atan(double x)
 {
 #ifdef HAVE_ATAN
