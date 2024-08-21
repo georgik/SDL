@@ -19,34 +19,28 @@
   3. This notice may not be removed or altered from any source distribution.
 */
 #include "SDL_internal.h"
-
-// An implementation of mutexes using semaphores
-
-#include "SDL_systhread_c.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 
 struct SDL_Mutex
 {
     int recursive;
     SDL_ThreadID owner;
-    SDL_Semaphore *sem;
+    SemaphoreHandle_t sem;  // Use FreeRTOS semaphore here
 };
-#include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
+
 SDL_Mutex *SDL_CreateMutex(void)
 {
     SDL_Mutex *mutex = (SDL_Mutex *)SDL_calloc(1, sizeof(*mutex));
-
-#ifndef SDL_THREADS_DISABLED
     if (mutex) {
-        /* Create the FreeRTOS mutex */
-        mutex->sem = xSemaphoreCreateRecursiveMutex();  // Use a recursive mutex
+        mutex->sem = xSemaphoreCreateRecursiveMutex();
         if (!mutex->sem) {
             SDL_free(mutex);
-            mutex = NULL;
+            return NULL;
         }
+        mutex->recursive = 0;
+        mutex->owner = 0;
     }
-#endif
-
     return mutex;
 }
 
@@ -54,78 +48,59 @@ void SDL_DestroyMutex(SDL_Mutex *mutex)
 {
     if (mutex) {
         if (mutex->sem) {
-            SDL_DestroySemaphore(mutex->sem);
+            vSemaphoreDelete(mutex->sem);
         }
         SDL_free(mutex);
     }
 }
 
-void SDL_LockMutex(SDL_Mutex *mutex) SDL_NO_THREAD_SAFETY_ANALYSIS  // clang doesn't know about NULL mutexes
+void SDL_LockMutex(SDL_Mutex *mutex) SDL_NO_THREAD_SAFETY_ANALYSIS
 {
-#ifndef SDL_THREADS_DISABLED
     if (mutex != NULL) {
         SDL_ThreadID this_thread = SDL_GetCurrentThreadID();
         if (mutex->owner == this_thread) {
             ++mutex->recursive;
         } else {
-            /* The order of operations is important.
-               We set the locking thread id after we obtain the lock
-               so unlocks from other threads will fail.
-             */
-            SDL_WaitSemaphore(mutex->sem);
+            xSemaphoreTakeRecursive(mutex->sem, portMAX_DELAY);
             mutex->owner = this_thread;
             mutex->recursive = 0;
         }
     }
-#endif /* SDL_THREADS_DISABLED */
 }
 
 int SDL_TryLockMutex(SDL_Mutex *mutex)
 {
     int retval = 0;
-#ifndef SDL_THREADS_DISABLED
     if (mutex) {
         SDL_ThreadID this_thread = SDL_GetCurrentThreadID();
         if (mutex->owner == this_thread) {
             ++mutex->recursive;
         } else {
-            /* The order of operations is important.
-             We set the locking thread id after we obtain the lock
-             so unlocks from other threads will fail.
-             */
-            retval = SDL_TryWaitSemaphore(mutex->sem);
-            if (retval == 0) {
+            if (xSemaphoreTakeRecursive(mutex->sem, 0) == pdPASS) {
                 mutex->owner = this_thread;
                 mutex->recursive = 0;
+                retval = 0;
+            } else {
+                retval = SDL_MUTEX_TIMEDOUT;
             }
         }
     }
-#endif // SDL_THREADS_DISABLED
     return retval;
 }
 
-void SDL_UnlockMutex(SDL_Mutex *mutex) SDL_NO_THREAD_SAFETY_ANALYSIS  // clang doesn't know about NULL mutexes
+void SDL_UnlockMutex(SDL_Mutex *mutex) SDL_NO_THREAD_SAFETY_ANALYSIS
 {
-#ifndef SDL_THREADS_DISABLED
     if (mutex != NULL) {
-        // If we don't own the mutex, we can't unlock it
         if (SDL_GetCurrentThreadID() != mutex->owner) {
             SDL_assert(!"Tried to unlock a mutex we don't own!");
-            return; // (undefined behavior!) SDL_SetError("mutex not owned by this thread");
+            return;
         }
 
         if (mutex->recursive) {
             --mutex->recursive;
         } else {
-            /* The order of operations is important.
-               First reset the owner so another thread doesn't lock
-               the mutex and set the ownership before we reset it,
-               then release the lock semaphore.
-             */
             mutex->owner = 0;
-            SDL_SignalSemaphore(mutex->sem);
+            xSemaphoreGiveRecursive(mutex->sem);
         }
     }
-#endif // SDL_THREADS_DISABLED
 }
-
