@@ -61,21 +61,18 @@ struct SDL_Semaphore
     SDL_Condition *count_nonzero;
 };
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 SDL_Semaphore *SDL_CreateSemaphore(Uint32 initial_value)
 {
-    SDL_Semaphore *sem;
-
-    sem = (SDL_Semaphore *)SDL_malloc(sizeof(*sem));
+    SDL_Semaphore *sem = (SDL_Semaphore *)SDL_malloc(sizeof(*sem));
     if (!sem) {
         return NULL;
     }
-    sem->count = initial_value;
-    sem->waiters_count = 0;
 
-    sem->count_lock = SDL_CreateMutex();
-    sem->count_nonzero = SDL_CreateCondition();
-    if (!sem->count_lock || !sem->count_nonzero) {
-        SDL_DestroySemaphore(sem);
+    sem->sem = xSemaphoreCreateCounting(XportMAX_DELAY, initial_value);
+    if (!sem->sem) {
+        SDL_free(sem);
         return NULL;
     }
 

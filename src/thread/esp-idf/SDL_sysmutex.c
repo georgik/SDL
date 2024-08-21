@@ -30,23 +30,22 @@ struct SDL_Mutex
     SDL_ThreadID owner;
     SDL_Semaphore *sem;
 };
-
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 SDL_Mutex *SDL_CreateMutex(void)
 {
     SDL_Mutex *mutex = (SDL_Mutex *)SDL_calloc(1, sizeof(*mutex));
 
 #ifndef SDL_THREADS_DISABLED
     if (mutex) {
-        /* Create the mutex semaphore, with initial value 1 */
-        mutex->sem = SDL_CreateSemaphore(1);
-        mutex->recursive = 0;
-        mutex->owner = 0;
+        /* Create the FreeRTOS mutex */
+        mutex->sem = xSemaphoreCreateRecursiveMutex();  // Use a recursive mutex
         if (!mutex->sem) {
             SDL_free(mutex);
             mutex = NULL;
         }
     }
-#endif // !SDL_THREADS_DISABLED
+#endif
 
     return mutex;
 }
