@@ -40,11 +40,6 @@ int SDL_ESPIDF_UpdateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *windo
         return SDL_SetError("Couldn't find ESPIDF surface for window");
     }
 
-    printf("Update framebuffer\n");
-
-    // Print width and height
-    printf("Surface width: %d, height: %d\n", surface->w, surface->h);
-
     // Prepare the RGB565 buffer
     int pixel_count = surface->w * surface->h;
     uint16_t *rgb565_buffer = (uint16_t *)malloc(pixel_count * sizeof(uint16_t));
@@ -64,14 +59,8 @@ int SDL_ESPIDF_UpdateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *windo
         rgb565_buffer[i] = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
     }
 
-    // Print the first 5 converted pixels
-    for (int i = 0; i < 5; i++) {
-        printf("RGB565 Pixel %d: 0x%04x\n", i, rgb565_buffer[i]);
-    }
-
     // Send the RGB565 buffer to the display
     ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, 0, 0, surface->w, surface->h, rgb565_buffer));
-    printf("Update framebuffer ...done\n");
 
     free(rgb565_buffer); // Free the allocated buffer
     return 0;
