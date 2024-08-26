@@ -40,32 +40,32 @@ int SDL_ESPIDF_UpdateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *windo
         return SDL_SetError("Couldn't find ESPIDF surface for window");
     }
 
-    // Prepare the RGB565 buffer
     int pixel_count = surface->w * surface->h;
     uint16_t *rgb565_buffer = (uint16_t *)malloc(pixel_count * sizeof(uint16_t));
     if (!rgb565_buffer) {
         return SDL_SetError("Failed to allocate memory for RGB565 buffer");
     }
 
-    // Convert RGBA to RGB565
     uint32_t *pixels = (uint32_t *)surface->pixels;
     for (int i = 0; i < pixel_count; i++) {
         uint32_t rgba = pixels[i];
-        uint8_t r = (rgba >> 24) & 0xFF;
-        uint8_t g = (rgba >> 16) & 0xFF;
-        uint8_t b = (rgba >> 8) & 0xFF;
+        uint8_t r = (rgba >> 16) & 0xFF;  // Extract Red
+        uint8_t g = (rgba >> 8) & 0xFF;   // Extract Green
+        uint8_t b = (rgba >> 0) & 0xFF;   // Extract Blue
 
-        // Convert to RGB565
-        rgb565_buffer[i] = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+        // Correct RGB565 conversion
+        uint16_t b5 = (b >> 3) & 0x1F;   // Blue 5 bits
+        uint16_t g6 = (g >> 2) & 0x3F;   // Green 6 bits
+        uint16_t r5 = (r >> 3) & 0x1F;   // Red 5 bits
+
+        rgb565_buffer[i] = (b5 << 11) | (r5 << 5) | g6;  // Combine into RGB565 format
     }
 
-    // Send the RGB565 buffer to the display
     ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, 0, 0, surface->w, surface->h, rgb565_buffer));
 
-    free(rgb565_buffer); // Free the allocated buffer
+    free(rgb565_buffer);
     return 0;
 }
-
 
 
 void SDL_ESPIDF_DestroyWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *window)
