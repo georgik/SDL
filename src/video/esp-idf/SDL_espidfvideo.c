@@ -17,7 +17,7 @@
 #define ESPIDFVID_DRIVER_NAME "espidf"
 
 esp_lcd_panel_handle_t panel_handle = NULL;
-esp_lcd_panel_io_handle_t io_handle = NULL;
+esp_lcd_panel_io_handle_t panel_io_handle = NULL;
 esp_lcd_touch_handle_t touch_handle = NULL;
 
 static int ESPIDF_VideoInit(SDL_VideoDevice *_this);
@@ -72,7 +72,7 @@ static int ESPIDF_VideoInit(SDL_VideoDevice *_this)
     const bsp_display_config_t bsp_disp_cfg = {
         .max_transfer_sz = (BSP_LCD_H_RES * BSP_LCD_V_RES) * sizeof(uint16_t),
     };
-    ESP_ERROR_CHECK(bsp_display_new(&bsp_disp_cfg, &panel_handle, &io_handle));
+    ESP_ERROR_CHECK(bsp_display_new(&bsp_disp_cfg, &panel_handle, &panel_io_handle));
     ESP_ERROR_CHECK(bsp_display_backlight_on());
     esp_lcd_panel_disp_on_off(panel_handle, true);
     return 0;

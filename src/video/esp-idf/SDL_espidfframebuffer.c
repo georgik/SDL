@@ -9,8 +9,20 @@
 #include "esp_check.h"
 #include "esp_lcd_panel_ops.h"
 #include "SDL_espidfshared.h"
+#include "esp_heap_caps.h"
+#include "freertos/semphr.h"
 
 #define ESPIDF_SURFACE "SDL.internal.window.surface"
+
+static uint16_t *rgb565_buffer = NULL;
+
+static SemaphoreHandle_t lcd_semaphore;
+
+static void lcd_event_callback(esp_lcd_panel_io_handle_t io, esp_lcd_panel_io_event_data_t *event_data, void *user_ctx)
+{
+    // Give the semaphore to signal the completion of the transfer
+    xSemaphoreGive(lcd_semaphore);
+}
 
 int SDL_ESPIDF_CreateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *window, SDL_PixelFormat *format, void **pixels, int *pitch)
 {
@@ -28,49 +40,72 @@ int SDL_ESPIDF_CreateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *windo
     *format = surface_format;
     *pixels = surface->pixels;
     *pitch = surface->pitch;
+
+    // Allocate RGB565 buffer in IRAM
+    rgb565_buffer = heap_caps_malloc(w * 40 * sizeof(uint16_t), MALLOC_CAP_32BIT | MALLOC_CAP_INTERNAL);
+    if (!rgb565_buffer) {
+        SDL_DestroySurface(surface);
+        return SDL_SetError("Failed to allocate memory for RGB565 buffer");
+    }
+
+    // Create a semaphore to synchronize LCD transactions
+    lcd_semaphore = xSemaphoreCreateBinary();
+    if (!lcd_semaphore) {
+        heap_caps_free(rgb565_buffer);
+        SDL_DestroySurface(surface);
+        return SDL_SetError("Failed to create semaphore");
+    }
+
+    // Register the callback
+    esp_lcd_panel_io_register_event_callbacks(panel_io_handle, &(esp_lcd_panel_io_callbacks_t){ .on_color_trans_done = lcd_event_callback }, NULL);
+
     return 0;
 }
 
-int SDL_ESPIDF_UpdateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *window, const SDL_Rect *rects, int numrects)
-{
-    SDL_Surface *surface;
 
-    surface = (SDL_Surface *)SDL_GetPointerProperty(SDL_GetWindowProperties(window), ESPIDF_SURFACE, NULL);
+IRAM_ATTR int SDL_ESPIDF_UpdateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *window, const SDL_Rect *rects, int numrects)
+{
+    SDL_Surface *surface = (SDL_Surface *)SDL_GetPointerProperty(SDL_GetWindowProperties(window), ESPIDF_SURFACE, NULL);
     if (!surface) {
         return SDL_SetError("Couldn't find ESPIDF surface for window");
     }
 
-    int pixel_count = surface->w * surface->h;
-    uint16_t *rgb565_buffer = (uint16_t *)malloc(pixel_count * sizeof(uint16_t));
-    if (!rgb565_buffer) {
-        return SDL_SetError("Failed to allocate memory for RGB565 buffer");
+    int chunk_height = 40;  // Process 40 lines at a time
+    for (int y = 0; y < surface->h; y += chunk_height) {
+        int height = (y + chunk_height > surface->h) ? (surface->h - y) : chunk_height;
+
+        // Convert to RGB565
+        for (int i = 0; i < 320 * height; i++) {
+            uint32_t rgba = ((uint32_t *)surface->pixels)[y * 320 + i];
+            uint8_t g = (rgba >> 16) & 0xFF;
+            uint8_t r = (rgba >> 8) & 0xFF;
+            uint8_t b = (rgba >> 0) & 0xFF;
+            rgb565_buffer[i] = ((b & 0xF8) << 8) | ((g & 0xFC) << 3) | (r >> 3);
+        }
+
+        // Send the chunk and wait for completion
+        ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, 0, y, surface->w, y + height, rgb565_buffer));
+        xSemaphoreTake(lcd_semaphore, portMAX_DELAY); // Wait for the current chunk to be fully sent
     }
 
-    uint32_t *pixels = (uint32_t *)surface->pixels;
-    for (int i = 0; i < pixel_count; i++) {
-        uint32_t rgba = pixels[i];
-        uint8_t r = (rgba >> 16) & 0xFF;  // Extract Red
-        uint8_t g = (rgba >> 8) & 0xFF;   // Extract Green
-        uint8_t b = (rgba >> 0) & 0xFF;   // Extract Blue
-
-        // Correct RGB565 conversion
-        uint16_t b5 = (b >> 3) & 0x1F;   // Blue 5 bits
-        uint16_t g6 = (g >> 2) & 0x3F;   // Green 6 bits
-        uint16_t r5 = (r >> 3) & 0x1F;   // Red 5 bits
-
-        rgb565_buffer[i] = (b5 << 11) | (r5 << 5) | g6;  // Combine into RGB565 format
-    }
-
-    ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, 0, 0, surface->w, surface->h, rgb565_buffer));
-
-    free(rgb565_buffer);
     return 0;
 }
-
 
 void SDL_ESPIDF_DestroyWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *window)
 {
     SDL_ClearProperty(SDL_GetWindowProperties(window), ESPIDF_SURFACE);
+
+    // Free the RGB565 buffer
+    if (rgb565_buffer) {
+        heap_caps_free(rgb565_buffer);
+        rgb565_buffer = NULL;
+    }
+
+    // Delete the semaphore
+    if (lcd_semaphore) {
+        vSemaphoreDelete(lcd_semaphore);
+        lcd_semaphore = NULL;
+    }
 }
 
 #endif /* SDL_VIDEO_DRIVER_ESP_IDF */
