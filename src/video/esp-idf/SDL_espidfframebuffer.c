@@ -27,7 +27,7 @@ static void lcd_event_callback(esp_lcd_panel_io_handle_t io, esp_lcd_panel_io_ev
 int SDL_ESPIDF_CreateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *window, SDL_PixelFormat *format, void **pixels, int *pitch)
 {
     SDL_Surface *surface;
-    const SDL_PixelFormat surface_format = SDL_PIXELFORMAT_XRGB8888;
+    const SDL_PixelFormat surface_format = SDL_PIXELFORMAT_RGB565;
     int w, h;
 
     SDL_GetWindowSizeInPixels(window, &w, &h);
@@ -76,9 +76,9 @@ IRAM_ATTR int SDL_ESPIDF_UpdateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Win
 
         // Convert to RGB565
         for (int i = 0; i < 320 * height; i++) {
-            uint32_t rgba = ((uint32_t *)surface->pixels)[y * 320 + i];
-            uint8_t g = (rgba >> 16) & 0xFF;
-            uint8_t r = (rgba >> 8) & 0xFF;
+            uint16_t rgba = ((uint16_t *)surface->pixels)[y * 320 + i];
+            uint8_t g = (rgba >> 11) & 0xFF;
+            uint8_t r = (rgba >> 5) & 0xFF;
             uint8_t b = (rgba >> 0) & 0xFF;
             rgb565_buffer[i] = ((b & 0xF8) << 8) | ((g & 0xFC) << 3) | (r >> 3);
         }
