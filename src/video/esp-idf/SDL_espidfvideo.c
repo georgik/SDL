@@ -74,7 +74,9 @@ static int ESPIDF_VideoInit(SDL_VideoDevice *_this)
     };
     ESP_ERROR_CHECK(bsp_display_new(&bsp_disp_cfg, &panel_handle, &panel_io_handle));
     ESP_ERROR_CHECK(bsp_display_backlight_on());
+#ifndef CONFIG_IDF_TARGET_ESP32P4
     esp_lcd_panel_disp_on_off(panel_handle, true);
+#endif
     return 0;
 }
 
