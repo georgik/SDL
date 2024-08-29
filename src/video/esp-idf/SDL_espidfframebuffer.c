@@ -93,10 +93,16 @@ IRAM_ATTR int SDL_ESPIDF_UpdateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Win
         // Convert to RGB565
         for (int i = 0; i < 320 * height; i++) {
             uint16_t rgba = ((uint16_t *)surface->pixels)[y * 320 + i];
+
+#ifdef CONFIG_IDF_TARGET_ESP32P4
+            rgb565_buffer[i] = rgba;
+#else
             uint8_t g = (rgba >> 11) & 0xFF;
             uint8_t r = (rgba >> 5) & 0xFF;
             uint8_t b = (rgba >> 0) & 0xFF;
+
             rgb565_buffer[i] = ((b & 0xF8) << 8) | ((g & 0xFC) << 3) | (r >> 3);
+#endif
         }
 
         // Send the chunk and wait for completion
