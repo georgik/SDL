@@ -62,7 +62,7 @@ static int ESPIDF_VideoInit(SDL_VideoDevice *_this)
     bsp_display_brightness_init();
     SDL_DisplayMode mode;
     SDL_zero(mode);
-    mode.format = SDL_PIXELFORMAT_XRGB8888;
+    mode.format = SDL_PIXELFORMAT_RGB565;
     mode.w = BSP_LCD_H_RES;
     mode.h = BSP_LCD_V_RES;
     printf("Video inini\n");
@@ -70,7 +70,9 @@ static int ESPIDF_VideoInit(SDL_VideoDevice *_this)
         return -1;
     }
     const bsp_display_config_t bsp_disp_cfg = {
+#ifndef CONFIG_IDF_TARGET_ESP32P4
         .max_transfer_sz = (BSP_LCD_H_RES * BSP_LCD_V_RES) * sizeof(uint16_t),
+#endif
     };
     ESP_ERROR_CHECK(bsp_display_new(&bsp_disp_cfg, &panel_handle, &panel_io_handle));
     ESP_ERROR_CHECK(bsp_display_backlight_on());
