@@ -18,11 +18,20 @@ static uint16_t *rgb565_buffer = NULL;
 
 static SemaphoreHandle_t lcd_semaphore;
 
+#ifdef CONFIG_IDF_TARGET_ESP32P4
+static bool lcd_event_callback(esp_lcd_panel_handle_t panel_io, esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx)
+{
+    // Give the semaphore to signal the completion of the transfer
+    xSemaphoreGive(lcd_semaphore);
+    return false;
+}
+#else
 static void lcd_event_callback(esp_lcd_panel_io_handle_t io, esp_lcd_panel_io_event_data_t *event_data, void *user_ctx)
 {
     // Give the semaphore to signal the completion of the transfer
     xSemaphoreGive(lcd_semaphore);
 }
+#endif
 
 int SDL_ESPIDF_CreateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *window, SDL_PixelFormat *format, void **pixels, int *pitch)
 {
@@ -57,7 +66,14 @@ int SDL_ESPIDF_CreateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *windo
     }
 
     // Register the callback
+#ifdef CONFIG_IDF_TARGET_ESP32P4
+    const esp_lcd_dpi_panel_event_callbacks_t callback = {
+       .on_color_trans_done = lcd_event_callback,
+   };
+    esp_lcd_dpi_panel_register_event_callbacks(panel_handle, &callback, NULL);
+#else
     esp_lcd_panel_io_register_event_callbacks(panel_io_handle, &(esp_lcd_panel_io_callbacks_t){ .on_color_trans_done = lcd_event_callback }, NULL);
+#endif
 
     return 0;
 }
