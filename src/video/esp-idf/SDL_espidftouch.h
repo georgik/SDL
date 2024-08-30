@@ -1,6 +1,6 @@
-/*
+﻿/*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2024 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2011 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -19,21 +19,10 @@
   3. This notice may not be removed or altered from any source distribution.
 */
 
-#include "SDL_internal.h"
+extern void ESPIDF_InitTouch(void);
+extern void ESPIDF_PumpTouchEvent(void);
+extern int ESPIDF_CalibrateTouch(float screenX[], float screenY[], float touchX[], float touchY[]);
+extern void ESPIDF_ChangeTouchMode(int raw);
+extern void ESPIDF_ReadTouchRawPosition(float* x, float* y);
+extern void ESPIDF_QuitTouch(void);
 
-#ifdef SDL_VIDEO_DRIVER_ESP_IDF
-
-#include "../../events/SDL_events_c.h"
-#include "SDL_espidfvideo.h"
-#include "SDL_espidfevents.h"
-#include "SDL_espidftouch.h"
-
-void ESPIDF_PumpEvents(SDL_VideoDevice *_this)
-{
-    // Placeholder for actual event polling implementation
-    // Depending on the platform, poll for touchscreen or other events here.
-
-    ESPIDF_PumpTouchEvent();
-}
-
-#endif /* SDL_VIDEO_DRIVER_ESP_IDF */
