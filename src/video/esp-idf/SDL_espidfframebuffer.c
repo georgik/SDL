@@ -51,7 +51,7 @@ int SDL_ESPIDF_CreateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *windo
     *pitch = surface->pitch;
 
     // Allocate RGB565 buffer in IRAM
-    rgb565_buffer = heap_caps_malloc(w * 40 * sizeof(uint16_t), MALLOC_CAP_32BIT | MALLOC_CAP_INTERNAL);
+    rgb565_buffer = heap_caps_malloc(w * h * sizeof(uint16_t), MALLOC_CAP_32BIT | MALLOC_CAP_INTERNAL);
     if (!rgb565_buffer) {
         SDL_DestroySurface(surface);
         return SDL_SetError("Failed to allocate memory for RGB565 buffer");
@@ -86,13 +86,13 @@ IRAM_ATTR int SDL_ESPIDF_UpdateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Win
         return SDL_SetError("Couldn't find ESPIDF surface for window");
     }
 
-    int chunk_height = 40;  // Process 40 lines at a time
+    int chunk_height = surface->h;  // Process 40 lines at a time
     for (int y = 0; y < surface->h; y += chunk_height) {
         int height = (y + chunk_height > surface->h) ? (surface->h - y) : chunk_height;
 
         // Convert to RGB565
-        for (int i = 0; i < 320 * height; i++) {
-            uint16_t rgba = ((uint16_t *)surface->pixels)[y * 320 + i];
+        for (int i = 0; i < surface->w * height; i++) {
+            uint16_t rgba = ((uint16_t *)surface->pixels)[y * surface->w + i];
 
 #ifdef CONFIG_IDF_TARGET_ESP32P4
             rgb565_buffer[i] = rgba;

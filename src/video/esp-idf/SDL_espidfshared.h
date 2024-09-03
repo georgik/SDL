@@ -9,6 +9,7 @@
 // Shared handles
 extern esp_lcd_panel_handle_t panel_handle;
 extern esp_lcd_panel_io_handle_t panel_io_handle;
+
 extern esp_lcd_touch_handle_t touch_handle;
 
 #endif /* SDL_espidfshared_h_ */

@@ -1,12 +1,15 @@
 
 #include "SDL_internal.h"
-#include "bsp/esp-bsp.h"
-#include "bsp/display.h"
-#include "bsp/touch.h"
 #include "SDL_espidfvideo.h"
 #include "SDL_espidfshared.h"
 #include "SDL_espidfframebuffer.h"
 #include "SDL_espidfevents.h"
+#include "SDL_espidftouch.h"
+
+#include "bsp/esp-bsp.h"
+#include "bsp/display.h"
+#include "bsp/touch.h"
+#include "esp_log.h"
 
 #ifdef SDL_VIDEO_DRIVER_ESP_IDF
 
@@ -18,7 +21,6 @@
 
 esp_lcd_panel_handle_t panel_handle = NULL;
 esp_lcd_panel_io_handle_t panel_io_handle = NULL;
-esp_lcd_touch_handle_t touch_handle = NULL;
 
 static int ESPIDF_VideoInit(SDL_VideoDevice *_this);
 static void ESPIDF_VideoQuit(SDL_VideoDevice *_this);
@@ -58,8 +60,6 @@ VideoBootStrap ESPIDF_bootstrap = {
 
 static int ESPIDF_VideoInit(SDL_VideoDevice *_this)
 {
-    bsp_i2c_init();
-    bsp_display_brightness_init();
     SDL_DisplayMode mode;
     SDL_zero(mode);
     mode.format = SDL_PIXELFORMAT_RGB565;
@@ -69,16 +69,23 @@ static int ESPIDF_VideoInit(SDL_VideoDevice *_this)
     if (SDL_AddBasicVideoDisplay(&mode) == 0) {
         return -1;
     }
+
+#ifdef CONFIG_IDF_TARGET_ESP32P4
+    ESP_ERROR_CHECK(bsp_display_new(NULL, &panel_handle, &panel_io_handle));
+#else
     const bsp_display_config_t bsp_disp_cfg = {
-#ifndef CONFIG_IDF_TARGET_ESP32P4
         .max_transfer_sz = (BSP_LCD_H_RES * BSP_LCD_V_RES) * sizeof(uint16_t),
-#endif
     };
     ESP_ERROR_CHECK(bsp_display_new(&bsp_disp_cfg, &panel_handle, &panel_io_handle));
+#endif
+
     ESP_ERROR_CHECK(bsp_display_backlight_on());
+
 #ifndef CONFIG_IDF_TARGET_ESP32P4
     esp_lcd_panel_disp_on_off(panel_handle, true);
 #endif
+
+    ESPIDF_InitTouch();
     return 0;
 }
 
