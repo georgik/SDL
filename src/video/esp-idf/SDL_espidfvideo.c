@@ -69,13 +69,18 @@ static int ESPIDF_VideoInit(SDL_VideoDevice *_this)
     if (SDL_AddBasicVideoDisplay(&mode) == 0) {
         return -1;
     }
-    const bsp_display_config_t bsp_disp_cfg = {
-#ifndef CONFIG_IDF_TARGET_ESP32P4
-        .max_transfer_sz = (BSP_LCD_H_RES * BSP_LCD_V_RES) * sizeof(uint16_t),
-#endif
-    };
+
+#ifdef CONFIG_IDF_TARGET_ESP32P4
     ESP_ERROR_CHECK(bsp_display_new(NULL, &panel_handle, &panel_io_handle));
+#else
+    const bsp_display_config_t bsp_disp_cfg = {
+        .max_transfer_sz = (BSP_LCD_H_RES * BSP_LCD_V_RES) * sizeof(uint16_t),
+    };
+    ESP_ERROR_CHECK(bsp_display_new(&bsp_disp_cfg, &panel_handle, &panel_io_handle));
+#endif
+
     ESP_ERROR_CHECK(bsp_display_backlight_on());
+
 #ifndef CONFIG_IDF_TARGET_ESP32P4
     esp_lcd_panel_disp_on_off(panel_handle, true);
 #endif
