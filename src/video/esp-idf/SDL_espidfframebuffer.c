@@ -12,12 +12,14 @@
 #include "esp_heap_caps.h"
 #include "freertos/semphr.h"
 
+static const char *TAG = "SDL_espidfframebuffer";
+
 #define ESPIDF_SURFACE "SDL.internal.window.surface"
 
 static uint16_t *rgb_buffer = NULL;
 
 static SemaphoreHandle_t lcd_semaphore;
-static int max_chunk_height = 80;  // Configurable chunk height
+static int max_chunk_height = 40;  // Configurable chunk height
 
 #ifdef CONFIG_IDF_TARGET_ESP32P4
 static bool lcd_event_callback(esp_lcd_panel_handle_t panel_io, esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx)
@@ -34,30 +36,38 @@ static void lcd_event_callback(esp_lcd_panel_io_handle_t io, esp_lcd_panel_io_ev
 }
 #endif
 
-void *allocate_rgb565_buffer(size_t width, size_t height) {
-    size_t buffer_size = width * height * sizeof(uint16_t);
+void esp_idf_log_free_dma(void) {
+    size_t free_dma = heap_caps_get_free_size(MALLOC_CAP_DMA);
+    ESP_LOGI(TAG, "Free DMA memory: %d bytes", free_dma);
+}
+
+void *allocate_rgb565_chunk_buffer(size_t width, size_t chunk_height) {
+
+    esp_idf_log_free_dma();
+    size_t buffer_size = width * chunk_height * sizeof(uint16_t);  // Smaller buffer based on chunk height
 
     // First attempt to allocate in IRAM (internal memory)
-    uint16_t *rgb565_buffer = (uint16_t *)heap_caps_malloc(buffer_size, MALLOC_CAP_32BIT | MALLOC_CAP_INTERNAL);
+    uint16_t *rgb565_buffer = (uint16_t *)heap_caps_malloc(buffer_size, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
     if (!rgb565_buffer) {
         // If IRAM allocation fails, attempt to allocate in PSRAM
-        printf("Failed to allocate graphical buffer in IRAM. Trying PSRAM...\n");
-        rgb565_buffer = (uint16_t *)heap_caps_malloc(buffer_size, MALLOC_CAP_SPIRAM);
+        printf("Failed to allocate graphical chunk buffer in IRAM. Trying PSRAM...\n");
+        rgb565_buffer = (uint16_t *)heap_caps_malloc(buffer_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA);
 
         if (!rgb565_buffer) {
             // If PSRAM allocation also fails, return an error
-            printf("Failed to allocate memory for RGB565 buffer in both IRAM and PSRAM\n");
+            printf("Failed to allocate memory for RGB565 chunk buffer in both IRAM and PSRAM\n");
             return NULL;
         } else {
-            printf("Allocation of graphical buffer in PSRAM succeeded. Warning: redraw will be slower.\n");
+            printf("Allocation of graphical chunk buffer in PSRAM succeeded.\n");
         }
     }
 
     // Allocation was successful
     printf("Memory allocation successful for buffer of size %zu bytes\n", buffer_size);
+    esp_idf_log_free_dma();
+
     return rgb565_buffer;
 }
-
 
 int SDL_ESPIDF_CreateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *window, SDL_PixelFormat *format, void **pixels, int *pitch)
 {
@@ -75,11 +85,11 @@ int SDL_ESPIDF_CreateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *windo
     *pixels = surface->pixels;
     *pitch = surface->pitch;
 
-    // Allocate RGB565 buffer in IRAM
-    rgb_buffer = allocate_rgb565_buffer(w, h);
+    // Allocate buffer only for the current chunk, not the entire framebuffer
+    rgb_buffer = allocate_rgb565_chunk_buffer(w, max_chunk_height);
     if (!rgb_buffer) {
         SDL_DestroySurface(surface);
-        return SDL_SetError("Failed to allocate memory for ESP-IDF frame buffer");
+        return SDL_SetError("Failed to allocate memory for ESP-IDF frame buffer chunk");
     }
 
     // Create a semaphore to synchronize LCD transactions
@@ -110,10 +120,11 @@ IRAM_ATTR int SDL_ESPIDF_UpdateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Win
         return SDL_SetError("Couldn't find ESPIDF surface for window");
     }
 
+    // Iterate over the chunks instead of the entire framebuffer
     for (int y = 0; y < surface->h; y += max_chunk_height) {
         int height = (y + max_chunk_height > surface->h) ? (surface->h - y) : max_chunk_height;
 
-        // Convert to RGB565
+        // Convert only the chunk of pixels to RGB565
         for (int i = 0; i < surface->w * height; i++) {
             uint16_t rgba = ((uint16_t *)surface->pixels)[y * surface->w + i];
 
@@ -127,9 +138,9 @@ IRAM_ATTR int SDL_ESPIDF_UpdateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Win
 #endif
         }
 
-        // Send the chunk and wait for completion
+        // Send the chunk to the LCD
         ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, 0, y, surface->w, y + height, rgb_buffer));
-        xSemaphoreTake(lcd_semaphore, portMAX_DELAY);  // Wait for the current chunk to be fully sent
+        xSemaphoreTake(lcd_semaphore, portMAX_DELAY);  // Wait for the chunk to be sent
     }
 
     return 0;
