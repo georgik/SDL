@@ -19,7 +19,7 @@ static const char *TAG = "SDL_espidfframebuffer";
 static uint16_t *rgb_buffer = NULL;
 
 static SemaphoreHandle_t lcd_semaphore;
-static int max_chunk_height = 40;  // Configurable chunk height
+static int max_chunk_height = 4;  // Configurable chunk height
 
 #ifdef CONFIG_IDF_TARGET_ESP32P4
 static bool lcd_event_callback(esp_lcd_panel_handle_t panel_io, esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx)
@@ -63,7 +63,7 @@ void *allocate_rgb565_chunk_buffer(size_t width, size_t chunk_height) {
     }
 
     // Allocation was successful
-    printf("Memory allocation successful for buffer of size %zu bytes\n", buffer_size);
+    printf("Framebuffer memory allocation successful for buffer of size %zu bytes\n", buffer_size);
     esp_idf_log_free_dma();
 
     return rgb565_buffer;
