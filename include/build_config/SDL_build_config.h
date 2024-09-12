@@ -30,8 +30,11 @@
  *  This is a set of defines to configure the SDL features
  */
 
+#define SDL_PLATFORM_ESP_IDF 1
 /* Add any platform that doesn't build using the configure system. */
-#if defined(SDL_PLATFORM_WIN32)
+#if defined(SDL_PLATFORM_ESP_IDF)
+#include "SDL_build_config_esp_idf.h"
+#elif defined(SDL_PLATFORM_WIN32)
 #include "SDL_build_config_windows.h"
 #elif defined(SDL_PLATFORM_WINRT)
 #include "SDL_build_config_winrt.h"
