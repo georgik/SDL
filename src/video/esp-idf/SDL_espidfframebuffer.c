@@ -11,7 +11,9 @@
 #include "SDL_espidfshared.h"
 #include "esp_heap_caps.h"
 #include "freertos/semphr.h"
+#ifdef CONFIG_IDF_TARGET_ESP32P4
 #include "driver/ppa.h"
+#endif
 
 static const char *TAG = "SDL_espidfframebuffer";
 
@@ -19,11 +21,19 @@ static const char *TAG = "SDL_espidfframebuffer";
 
 static SemaphoreHandle_t lcd_semaphore;
 static int max_chunk_height = 4;  // Configurable chunk height
+#ifdef CONFIG_IDF_TARGET_ESP32P4
 static ppa_client_handle_t ppa_srm_handle = NULL;  // PPA client handle
 static uint8_t *ppa_out_buf = NULL;  // Reusable PPA output buffer
 static size_t ppa_out_buf_size = 0;  // Size of the PPA output buffer
-int scale_factor = 3;
-float scale_factor_float = 3.0;
+
+#ifndef SCALE_FACTOR
+    #define SCALE_FACTOR 3
+    #define SCALE_FACTOR_FLOAD 3.0
+#endif
+
+#else
+static uint16_t *rgb565_buffer = NULL;
+#endif
 
 #ifdef CONFIG_IDF_TARGET_ESP32P4
 static bool lcd_event_callback(esp_lcd_panel_handle_t panel_io, esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx)
@@ -32,9 +42,10 @@ static bool lcd_event_callback(esp_lcd_panel_handle_t panel_io, esp_lcd_dpi_pane
     return false;
 }
 #else
-static void lcd_event_callback(esp_lcd_panel_io_handle_t io, esp_lcd_panel_io_event_data_t *event_data, void *user_ctx)
+static bool lcd_event_callback(esp_lcd_panel_io_handle_t io, esp_lcd_panel_io_event_data_t *event_data, void *user_ctx)
 {
     xSemaphoreGive(lcd_semaphore);
+    return false;
 }
 #endif
 
@@ -59,6 +70,15 @@ int SDL_ESPIDF_CreateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *windo
     *pixels = surface->pixels;
     *pitch = surface->pitch;
 
+#ifndef CONFIG_IDF_TARGET_ESP32P4
+    // Allocate RGB565 buffer in IRAM
+    rgb565_buffer = heap_caps_malloc(w * max_chunk_height * sizeof(uint16_t), MALLOC_CAP_32BIT | MALLOC_CAP_INTERNAL);
+    if (!rgb565_buffer) {
+        SDL_DestroySurface(surface);
+        return SDL_SetError("Failed to allocate memory for RGB565 buffer");
+    }
+#endif
+
     // Create a semaphore to synchronize LCD transactions
     lcd_semaphore = xSemaphoreCreateBinary();
     if (!lcd_semaphore) {
@@ -77,7 +97,7 @@ int SDL_ESPIDF_CreateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *windo
     }
 
     // Allocate reusable PPA output buffer
-    ppa_out_buf_size = (w * scale_factor) * (max_chunk_height * scale_factor) * sizeof(uint16_t);  // 2x scaling
+    ppa_out_buf_size = (w * SCALE_FACTOR) * (max_chunk_height * SCALE_FACTOR) * sizeof(uint16_t);  // 2x scaling
     ppa_out_buf = heap_caps_malloc(ppa_out_buf_size, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
     if (!ppa_out_buf) {
         return SDL_SetError("Failed to allocate PPA output buffer");
@@ -119,12 +139,12 @@ IRAM_ATTR int SDL_ESPIDF_UpdateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Win
             .out.srm_cm = PPA_SRM_COLOR_MODE_RGB565,
             .out.buffer = ppa_out_buf,
             .out.buffer_size = ppa_out_buf_size,  // Reused output buffer
-            .out.pic_w = surface->w * scale_factor,  // 2x width scaling
-            .out.pic_h = height * scale_factor,      // 2x height scaling
+            .out.pic_w = surface->w * SCALE_FACTOR,
+            .out.pic_h = height * SCALE_FACTOR,
 
             .rotation_angle = PPA_SRM_ROTATION_ANGLE_0,  // No rotation
-            .scale_x = scale_factor_float,  // 2x scaling in X
-            .scale_y = scale_factor_float,  // 2x scaling in Y
+            .scale_x = SCALE_FACTOR_FLOAT,
+            .scale_y = SCALE_FACTOR_FLOAT,
 
             .rgb_swap = 0,
             .byte_swap = 0,
@@ -146,8 +166,16 @@ IRAM_ATTR int SDL_ESPIDF_UpdateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Win
         int height = (y + max_chunk_height > surface->h) ? (surface->h - y) : max_chunk_height;
         uint16_t *src_pixels = (uint16_t *)surface->pixels + (y * surface->w);
 
+        for (int i = 0; i < surface->w * max_chunk_height; i++) {
+            uint16_t rgba = ((uint16_t *)surface->pixels)[y * surface->w + i];
+            uint8_t g = (rgba >> 11) & 0xFF;
+            uint8_t r = (rgba >> 5) & 0xFF;
+            uint8_t b = (rgba >> 0) & 0xFF;
+
+            rgb565_buffer[i] = ((b & 0xF8) << 8) | ((g & 0xFC) << 3) | (r >> 3);
+        }
         // Send directly to LCD
-        ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, 0, y, surface->w, y + height, src_pixels));
+        ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, 0, y, surface->w, y + height, rgb565_buffer));
 
         // Wait for the current chunk to finish transmission
         xSemaphoreTake(lcd_semaphore, portMAX_DELAY);
