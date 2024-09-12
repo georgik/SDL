@@ -22,6 +22,8 @@ static int max_chunk_height = 4;  // Configurable chunk height
 static ppa_client_handle_t ppa_srm_handle = NULL;  // PPA client handle
 static uint8_t *ppa_out_buf = NULL;  // Reusable PPA output buffer
 static size_t ppa_out_buf_size = 0;  // Size of the PPA output buffer
+int scale_factor = 3;
+float scale_factor_float = 3.0;
 
 #ifdef CONFIG_IDF_TARGET_ESP32P4
 static bool lcd_event_callback(esp_lcd_panel_handle_t panel_io, esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx)
@@ -75,7 +77,7 @@ int SDL_ESPIDF_CreateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *windo
     }
 
     // Allocate reusable PPA output buffer
-    ppa_out_buf_size = (w * 2) * (max_chunk_height * 2) * sizeof(uint16_t);  // 2x scaling
+    ppa_out_buf_size = (w * scale_factor) * (max_chunk_height * scale_factor) * sizeof(uint16_t);  // 2x scaling
     ppa_out_buf = heap_caps_malloc(ppa_out_buf_size, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
     if (!ppa_out_buf) {
         return SDL_SetError("Failed to allocate PPA output buffer");
@@ -117,12 +119,12 @@ IRAM_ATTR int SDL_ESPIDF_UpdateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Win
             .out.srm_cm = PPA_SRM_COLOR_MODE_RGB565,
             .out.buffer = ppa_out_buf,
             .out.buffer_size = ppa_out_buf_size,  // Reused output buffer
-            .out.pic_w = surface->w * 2,  // 2x width scaling
-            .out.pic_h = height * 2,      // 2x height scaling
+            .out.pic_w = surface->w * scale_factor,  // 2x width scaling
+            .out.pic_h = height * scale_factor,      // 2x height scaling
 
             .rotation_angle = PPA_SRM_ROTATION_ANGLE_0,  // No rotation
-            .scale_x = 2.0,  // 2x scaling in X
-            .scale_y = 2.0,  // 2x scaling in Y
+            .scale_x = scale_factor_float,  // 2x scaling in X
+            .scale_y = scale_factor_float,  // 2x scaling in Y
 
             .rgb_swap = 0,
             .byte_swap = 0,
@@ -133,7 +135,7 @@ IRAM_ATTR int SDL_ESPIDF_UpdateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Win
         ESP_ERROR_CHECK(ppa_do_scale_rotate_mirror(ppa_srm_handle, &srm_config));
 
         // Draw the scaled output to the LCD
-        ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, 0, y * 2, surface->w * 2, (y + height) * 2, ppa_out_buf));
+        ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, 0, y * scale_factor, surface->w * scale_factor, (y + height) * scale_factor, ppa_out_buf));
 
         // Wait for the current chunk to finish transmission
         xSemaphoreTake(lcd_semaphore, portMAX_DELAY);
