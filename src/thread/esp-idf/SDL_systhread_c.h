@@ -19,6 +19,8 @@
   3. This notice may not be removed or altered from any source distribution.
 */
 #include "SDL_internal.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
-/* Stub until we implement threads on this platform */
-typedef int SYS_ThreadHandle;
+/* Use TaskHandle_t for the thread handle in ESP-IDF */
+typedef TaskHandle_t SYS_ThreadHandle;

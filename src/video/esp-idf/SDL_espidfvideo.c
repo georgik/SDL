@@ -65,7 +65,7 @@ static int ESPIDF_VideoInit(SDL_VideoDevice *_this)
     mode.format = SDL_PIXELFORMAT_RGB565;
     mode.w = BSP_LCD_H_RES;
     mode.h = BSP_LCD_V_RES;
-    printf("Video inini\n");
+    printf("ESP-IDF video init\n");
     if (SDL_AddBasicVideoDisplay(&mode) == 0) {
         return -1;
     }
