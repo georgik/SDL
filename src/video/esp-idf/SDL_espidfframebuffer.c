@@ -27,8 +27,14 @@ static uint8_t *ppa_out_buf = NULL;  // Reusable PPA output buffer
 static size_t ppa_out_buf_size = 0;  // Size of the PPA output buffer
 
 #ifndef SCALE_FACTOR
-    #define SCALE_FACTOR 3
-    #define SCALE_FACTOR_FLOAD 3.0
+int scale_factor = 1;
+float scale_factor_float = 1.0;
+// Workaround to quickly pass scaling to PPA
+// This should be probably handled on Render level
+void set_scale_factor(int factor, float factor_float) {
+    scale_factor = factor;
+    scale_factor_float = factor_float;
+}
 #endif
 
 #else
@@ -96,13 +102,14 @@ int SDL_ESPIDF_CreateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *windo
         ESP_ERROR_CHECK(ppa_register_client(&ppa_srm_config, &ppa_srm_handle));
     }
 
-    // Allocate reusable PPA output buffer
-    ppa_out_buf_size = (w * SCALE_FACTOR) * (max_chunk_height * SCALE_FACTOR) * sizeof(uint16_t);  // 2x scaling
-    ppa_out_buf = heap_caps_malloc(ppa_out_buf_size, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
-    if (!ppa_out_buf) {
-        return SDL_SetError("Failed to allocate PPA output buffer");
+    if (scale_factor != 1) {
+        // Allocate reusable PPA output buffer
+        ppa_out_buf_size = (w * scale_factor) * (max_chunk_height * scale_factor) * sizeof(uint16_t);  // 2x scaling
+        ppa_out_buf = heap_caps_malloc(ppa_out_buf_size, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+        if (!ppa_out_buf) {
+            return SDL_SetError("Failed to allocate PPA output buffer");
+        }
     }
-
     const esp_lcd_dpi_panel_event_callbacks_t callback = {
         .on_color_trans_done = lcd_event_callback,
     };
@@ -127,35 +134,40 @@ IRAM_ATTR int SDL_ESPIDF_UpdateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Win
         int height = (y + max_chunk_height > surface->h) ? (surface->h - y) : max_chunk_height;
         uint16_t *src_pixels = (uint16_t *)surface->pixels + (y * surface->w);
 
-        // PPA SRM configuration for scaling
-        ppa_srm_oper_config_t srm_config = {
-            .in.buffer = src_pixels,
-            .in.pic_w = surface->w,
-            .in.pic_h = height,
-            .in.block_w = surface->w,
-            .in.block_h = height,
-            .in.srm_cm = PPA_SRM_COLOR_MODE_RGB565,
+        if (scale_factor != 1) {
+            // PPA SRM configuration for scaling
+            ppa_srm_oper_config_t srm_config = {
+                .in.buffer = src_pixels,
+                .in.pic_w = surface->w,
+                .in.pic_h = height,
+                .in.block_w = surface->w,
+                .in.block_h = height,
+                .in.srm_cm = PPA_SRM_COLOR_MODE_RGB565,
 
-            .out.srm_cm = PPA_SRM_COLOR_MODE_RGB565,
-            .out.buffer = ppa_out_buf,
-            .out.buffer_size = ppa_out_buf_size,  // Reused output buffer
-            .out.pic_w = surface->w * SCALE_FACTOR,
-            .out.pic_h = height * SCALE_FACTOR,
+                .out.srm_cm = PPA_SRM_COLOR_MODE_RGB565,
+                .out.buffer = ppa_out_buf,
+                .out.buffer_size = ppa_out_buf_size,  // Reused output buffer
+                .out.pic_w = surface->w * scale_factor,
+                .out.pic_h = height * scale_factor,
 
-            .rotation_angle = PPA_SRM_ROTATION_ANGLE_0,  // No rotation
-            .scale_x = SCALE_FACTOR_FLOAT,
-            .scale_y = SCALE_FACTOR_FLOAT,
+                .rotation_angle = PPA_SRM_ROTATION_ANGLE_0,  // No rotation
+                .scale_x = scale_factor_float,
+                .scale_y = scale_factor_float,
 
-            .rgb_swap = 0,
-            .byte_swap = 0,
-            .mode = PPA_TRANS_MODE_BLOCKING,
-        };
+                .rgb_swap = 0,
+                .byte_swap = 0,
+                .mode = PPA_TRANS_MODE_BLOCKING,
+            };
 
-        // Execute PPA scaling
-        ESP_ERROR_CHECK(ppa_do_scale_rotate_mirror(ppa_srm_handle, &srm_config));
+            // Execute PPA scaling
+            ESP_ERROR_CHECK(ppa_do_scale_rotate_mirror(ppa_srm_handle, &srm_config));
 
-        // Draw the scaled output to the LCD
-        ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, 0, y * scale_factor, surface->w * scale_factor, (y + height) * scale_factor, ppa_out_buf));
+            // Draw the scaled output to the LCD
+            ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, 0, y * scale_factor, surface->w * scale_factor, (y + height) * scale_factor, ppa_out_buf));
+        } else {
+            // Draw the scaled output to the LCD
+            ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, 0, y, surface->w, (y + height), src_pixels));
+        }
 
         // Wait for the current chunk to finish transmission
         xSemaphoreTake(lcd_semaphore, portMAX_DELAY);
@@ -206,6 +218,12 @@ void SDL_ESPIDF_DestroyWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *win
     if (ppa_srm_handle) {
         ESP_ERROR_CHECK(ppa_unregister_client(ppa_srm_handle));
         ppa_srm_handle = NULL;
+    }
+#else
+    // Free the RGB565 buffer
+    if (rgb565_buffer) {
+        heap_caps_free(rgb565_buffer);
+        rgb565_buffer = NULL;
     }
 #endif
 }
