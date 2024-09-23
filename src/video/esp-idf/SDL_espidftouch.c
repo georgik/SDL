@@ -47,38 +47,38 @@ void ESPIDF_InitTouch(void)
 
 void ESPIDF_PumpTouchEvent(void)
 {
-    SDL_Window *window;
-    SDL_VideoDisplay *display;
-    static SDL_bool was_pressed = SDL_FALSE;
-    SDL_bool pressed;
+    // SDL_Window *window;
+    // SDL_VideoDisplay *display;
+    // static SDL_bool was_pressed = SDL_FALSE;
+    // SDL_bool pressed;
 
-    uint16_t touchpad_x[1] = {0};
-    uint16_t touchpad_y[1] = {0};
-    uint8_t touchpad_cnt = 0;
+    // uint16_t touchpad_x[1] = {0};
+    // uint16_t touchpad_y[1] = {0};
+    // uint8_t touchpad_cnt = 0;
 
-    esp_lcd_touch_read_data(touch_handle);
-    bool touchpad_pressed = esp_lcd_touch_get_coordinates(touch_handle, touchpad_x, touchpad_y, NULL, &touchpad_cnt, 1);
-    pressed = (touchpad_x[0] != 0 || touchpad_y[0] != 0);
+    // esp_lcd_touch_read_data(touch_handle);
+    // bool touchpad_pressed = esp_lcd_touch_get_coordinates(touch_handle, touchpad_x, touchpad_y, NULL, &touchpad_cnt, 1);
+    // pressed = (touchpad_x[0] != 0 || touchpad_y[0] != 0);
 
-    display = NULL;
-    window = display ? display->fullscreen_window : NULL;
+    // display = NULL;
+    // window = display ? display->fullscreen_window : NULL;
 
-    if (pressed != was_pressed) {
-        was_pressed = pressed;
-        ESP_LOGD("SDL", "touchpad_pressed: %d, [%d, %d]", touchpad_pressed, touchpad_x[0], touchpad_y[0]);
-        SDL_SendTouch(0, ESPIDF_TOUCH_ID, ESPIDF_TOUCH_FINGER,
-                      window,
-                      pressed,
-                      touchpad_x[0],
-                      touchpad_y[0],
-                      pressed ? 1.0f : 0.0f);
-    } else if (pressed) {
-        SDL_SendTouchMotion(0, ESPIDF_TOUCH_ID, ESPIDF_TOUCH_FINGER,
-                            window,
-                            touchpad_x[0],
-                            touchpad_y[0],
-                            1.0f);
-    }
+    // if (pressed != was_pressed) {
+    //     was_pressed = pressed;
+    //     ESP_LOGD("SDL", "touchpad_pressed: %d, [%d, %d]", touchpad_pressed, touchpad_x[0], touchpad_y[0]);
+    //     SDL_SendTouch(0, ESPIDF_TOUCH_ID, ESPIDF_TOUCH_FINGER,
+    //                   window,
+    //                   pressed,
+    //                   touchpad_x[0],
+    //                   touchpad_y[0],
+    //                   pressed ? 1.0f : 0.0f);
+    // } else if (pressed) {
+    //     SDL_SendTouchMotion(0, ESPIDF_TOUCH_ID, ESPIDF_TOUCH_FINGER,
+    //                         window,
+    //                         touchpad_x[0],
+    //                         touchpad_y[0],
+    //                         1.0f);
+    // }
 }
 
 int ESPIDF_CalibrateTouch(float screenX[], float screenY[], float touchX[], float touchY[])

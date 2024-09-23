@@ -121,6 +121,25 @@ int SDL_ESPIDF_CreateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *windo
     return 0;
 }
 
+typedef struct
+{
+    int32_t x;      /** Horizontal position. */
+    int32_t y;      /** Vertical position. */
+    int32_t width;  /** Area / image width, must be positive. */
+    int32_t height; /** Area / image height, must be positive. */
+} Rect_t;
+typedef enum
+{
+    BLACK_ON_WHITE = 1 << 0, /** Draw black / grayscale image on a white display. */
+    WHITE_ON_WHITE = 1 << 1, /** "Draw with white ink" on a white display. */
+    WHITE_ON_BLACK = 1 << 2, /** Draw with white ink on a black display. */
+} DrawMode_t;
+
+extern void IRAM_ATTR epd_draw_image(Rect_t area, uint8_t *data, DrawMode_t mode);
+extern Rect_t epd_full_screen();
+extern void epd_clear();
+
+
 IRAM_ATTR int SDL_ESPIDF_UpdateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *window, const SDL_Rect *rects, int numrects)
 {
     SDL_Surface *surface = (SDL_Surface *)SDL_GetPointerProperty(SDL_GetWindowProperties(window), ESPIDF_SURFACE, NULL);
@@ -173,25 +192,27 @@ IRAM_ATTR int SDL_ESPIDF_UpdateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Win
         xSemaphoreTake(lcd_semaphore, portMAX_DELAY);
     }
 #else
+epd_clear();
+    epd_draw_image(epd_full_screen(), surface->pixels, BLACK_ON_WHITE);
     // Without PPA, send chunks directly from src_pixels
-    for (int y = 0; y < surface->h; y += max_chunk_height) {
-        int height = (y + max_chunk_height > surface->h) ? (surface->h - y) : max_chunk_height;
-        uint16_t *src_pixels = (uint16_t *)surface->pixels + (y * surface->w);
+    // for (int y = 0; y < surface->h; y += max_chunk_height) {
+    //     int height = (y + max_chunk_height > surface->h) ? (surface->h - y) : max_chunk_height;
+    //     uint16_t *src_pixels = (uint16_t *)surface->pixels + (y * surface->w);
 
-        for (int i = 0; i < surface->w * max_chunk_height; i++) {
-            uint16_t rgba = ((uint16_t *)surface->pixels)[y * surface->w + i];
-            uint8_t g = (rgba >> 11) & 0xFF;
-            uint8_t r = (rgba >> 5) & 0xFF;
-            uint8_t b = (rgba >> 0) & 0xFF;
+    //     for (int i = 0; i < surface->w * max_chunk_height; i++) {
+    //         uint16_t rgba = ((uint16_t *)surface->pixels)[y * surface->w + i];
+    //         uint8_t g = (rgba >> 11) & 0xFF;
+    //         uint8_t r = (rgba >> 5) & 0xFF;
+    //         uint8_t b = (rgba >> 0) & 0xFF;
 
-            rgb565_buffer[i] = ((b & 0xF8) << 8) | ((g & 0xFC) << 3) | (r >> 3);
-        }
-        // Send directly to LCD
-        ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, 0, y, surface->w, y + height, rgb565_buffer));
+    //         rgb565_buffer[i] = ((b & 0xF8) << 8) | ((g & 0xFC) << 3) | (r >> 3);
+    //     }
+    //     // Send directly to LCD
+    //     ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, 0, y, surface->w, y + height, rgb565_buffer));
 
-        // Wait for the current chunk to finish transmission
-        xSemaphoreTake(lcd_semaphore, portMAX_DELAY);
-    }
+    //     // Wait for the current chunk to finish transmission
+    //     xSemaphoreTake(lcd_semaphore, portMAX_DELAY);
+    // }
 #endif
 
     return 0;

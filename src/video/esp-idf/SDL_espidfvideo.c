@@ -63,6 +63,8 @@ static int ESPIDF_VideoInit(SDL_VideoDevice *_this)
     SDL_DisplayMode mode;
     SDL_zero(mode);
     mode.format = SDL_PIXELFORMAT_RGB565;
+    // mode.format = SDL_PIXELFORMAT_INDEX4LSB;
+    // mode.format = SDL_PIXELFORMAT_RGB888;
     mode.w = BSP_LCD_H_RES;
     mode.h = BSP_LCD_V_RES;
     printf("ESP-IDF video init\n");
