@@ -47,6 +47,9 @@
 // File system
 #define HAVE_STDIO_H 1
 
+// Memory
+#define HAVE_LIBC   1
+
 /**
  *  \file SDL_build_config_minimal.h
  *
