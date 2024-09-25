@@ -66,13 +66,13 @@ int SDL_ESPIDF_CreateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *windo
     int w, h;
 
     SDL_GetWindowSizeInPixels(window, &w, &h);
-    surface = SDL_CreateSurface(w, h, SDL_PIXELFORMAT_RGB565);
+    *format = SDL_PIXELFORMAT_RGB332;
+    surface = SDL_CreateSurface(w, h, *format);
     if (!surface) {
         return -1;
     }
 
     SDL_SetSurfaceProperty(SDL_GetWindowProperties(window), ESPIDF_SURFACE, surface);
-    *format = SDL_PIXELFORMAT_RGB565;
     *pixels = surface->pixels;
     *pitch = surface->pitch;
 
