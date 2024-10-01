@@ -38,6 +38,7 @@
 #include "../../core/linux/SDL_dbus.h"
 #endif /* SDL_PLATFORM_LINUX */
 
+
 #if (defined(SDL_PLATFORM_LINUX) || defined(SDL_PLATFORM_MACOS) || defined(SDL_PLATFORM_IOS)) && defined(HAVE_DLOPEN)
 #include <dlfcn.h>
 #ifndef RTLD_DEFAULT
@@ -58,7 +59,10 @@
 /* List of signals to mask in the subthreads */
 static const int sig_list[] = {
     SIGHUP, SIGINT, SIGQUIT, SIGPIPE, SIGALRM, SIGTERM, SIGCHLD, SIGWINCH,
-    SIGVTALRM, SIGPROF, 0
+#ifndef SDL_PLATFORM_ESP_IDF
+    SIGVTALRM, SIGPROF,
+#endif
+    0
 };
 
 static void *RunThread(void *data)
@@ -114,6 +118,23 @@ int SDL_SYS_CreateThread(SDL_Thread *thread,
 
     return 0;
 }
+
+int sigemptyset(sigset_t *set) {
+    if (set == NULL) {
+        return -1;
+    }
+    *set = 0;
+    return 0;
+}
+
+int sigaddset(sigset_t *set, int signo) {
+    if (set == NULL || signo < 1 || signo > 31) {
+        return -1;
+    }
+    *set |= (1U << (signo - 1));
+    return 0;
+}
+
 
 void SDL_SYS_SetupThread(const char *name)
 {
@@ -177,7 +198,7 @@ SDL_ThreadID SDL_GetCurrentThreadID(void)
 
 int SDL_SYS_SetThreadPriority(SDL_ThreadPriority priority)
 {
-#ifdef SDL_PLATFORM_RISCOS
+#if defined(SDL_PLATFORM_RISCOS) || defined(SDL_PLATFORM_ESP_IDF)
     /* FIXME: Setting thread priority does not seem to be supported */
     return 0;
 #else
