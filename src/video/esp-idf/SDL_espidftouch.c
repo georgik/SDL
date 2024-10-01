@@ -31,22 +31,35 @@
 
 #define ESPIDF_TOUCH_ID         1
 #define ESPIDF_TOUCH_FINGER     1
+#define TAG                     "SDL_espidftouch"
 
 esp_lcd_touch_handle_t touch_handle;   // LCD touch handle
 
 void ESPIDF_InitTouch(void)
 {
+    esp_err_t err;
+
+    // Initialize I2C for touch
     bsp_i2c_init();
 
     /* Initialize touch */
-    bsp_touch_new(NULL, &touch_handle);
-
-    SDL_AddTouch(ESPIDF_TOUCH_ID, SDL_TOUCH_DEVICE_DIRECT, "Touchscreen");
-    ESP_LOGI("SDL", "ESPIDF_InitTouch");
+    err = bsp_touch_new(NULL, &touch_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize touch: %s", esp_err_to_name(err));
+        touch_handle = NULL; // Invalidate touch_handle to prevent usage
+    } else {
+        // Only add touch device if initialization succeeded
+        SDL_AddTouch(ESPIDF_TOUCH_ID, SDL_TOUCH_DEVICE_DIRECT, "Touchscreen");
+        ESP_LOGI(TAG, "Touch initialized successfully");
+    }
 }
 
 void ESPIDF_PumpTouchEvent(void)
 {
+    if (touch_handle == NULL) {
+        return;
+    }
+
     SDL_Window *window;
     SDL_VideoDisplay *display;
     static SDL_bool was_pressed = SDL_FALSE;
