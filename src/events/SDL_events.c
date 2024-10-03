@@ -1686,7 +1686,7 @@ void SDL_SetEventEnabled(Uint32 type, SDL_bool enabled)
         /* turn off drag'n'drop support if we've disabled the events.
            This might change some UI details at the OS level. */
         if (type == SDL_EVENT_DROP_FILE || type == SDL_EVENT_DROP_TEXT) {
-            //SDL_ToggleDragAndDropSupport();
+            SDL_ToggleDragAndDropSupport();
         }
     }
 }
