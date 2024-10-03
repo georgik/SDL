@@ -487,7 +487,6 @@ typedef struct VideoBootStrap
 } VideoBootStrap;
 
 /* Not all of these are available in a given build. Use #ifdefs, etc. */
-extern VideoBootStrap ESPIDF_bootstrap;
 extern VideoBootStrap COCOA_bootstrap;
 extern VideoBootStrap X11_bootstrap;
 extern VideoBootStrap WINDOWS_bootstrap;
