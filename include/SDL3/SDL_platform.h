@@ -37,12 +37,6 @@
 extern "C" {
 #endif
 
-// #ifdef CONFIG_IDF_TARGET_ESP32
-#define SDL_PLATFORM_ESP_IDF 1
-#define SDL_ESP_IDF 1
-// #endif
-
-
 /**
  * Get the name of the platform.
  *

@@ -205,9 +205,4 @@
 #define SDL_PLATFORM_3DS    1
 #endif
 
-#ifdef CONFIG_IDF_TARGET_ESP32
-#define SDL_PLATFORM_ESP_IDF 1
-#endif
-
-
 #endif /* SDL_platform_defines_h_ */
